@@ -22,7 +22,6 @@ class PLogControl
 private:
     Lock pLock;
     std::list<spdlog::logger *> loggerList;
-
     bool loggerIsValid(spdlog::logger *logger);
 public:
 	PLogControl();

@@ -32,32 +32,9 @@ void webSocketControl::run(uint16_t port) {
 }
 
 void webSocketControl::on_open(connection_hdl hdl) {
-//
-//    std::ifstream din("dir.txt");
-//    std::string addr;
-//    std::string line;
-//    std::unordered_set<std::string> addrs;
-//    while (getline(din, addr)) {
-//
-//        addrs.insert(addr);
-//    }
-//    din.close();
-//    std::ofstream dout("dir.txt", std::ios::trunc | std::ios::out);
-//    for (auto& i : addrs) {
-//        dout << i << std::endl;
-//    }
-//    dout.close();
-//    for (auto& a : addrs) {
-//        std::cout << a  << std::endl;
-//        std::ifstream fin(a);
-//        while (getline(fin, line)) {
-//            //std::cout << a  << std::endl;
-//            m_server.send(hdl, line, websocketpp::frame::opcode::text);
-//        }
-//        std::cout << "close" << std::endl;
-//        fin.close();
-//    }
     AutoLock lock(pLock);
+    PLogConfig& config = PLogConfig::get_instance();
+    m_server.send(hdl, config.getSetting(), websocketpp::frame::opcode::text);
     for (std::string str : logList) {
         m_server.send(hdl, str, websocketpp::frame::opcode::text);
     }
@@ -69,10 +46,28 @@ void webSocketControl::on_close(connection_hdl hdl) {
 }
 
 void webSocketControl::on_message(connection_hdl hdl, server::message_ptr msg) {
-    //msg->get_payload();
+    //std::cout << msg->get_payload() << std::endl;
+    bool type = true;
+    size_t pos = -1;
+    std::string payload = msg->get_payload(), key;
+    std::unordered_map<std::string, std::string> m;
+    while ((pos = payload.find('\"', pos + 1)) != payload.npos) {
+        size_t pos2 = payload.find('\"', pos + 1);
+        std::string temp = payload.substr(pos + 1, pos2 - pos - 1);
+        pos = pos2;
+        if (type == true) {
+            key = temp;
+            type = false;
+        } else {
+            m[key] = temp;
+            type = true;
+        }
+    }
+    PLogConfig& config = PLogConfig::get_instance();
+    config.set_conf_value(m);
+    //config.set_conf_value("MODE", "3");
 }
 void webSocketControl::sendData(const char* msg) {
-    con_list::iterator it;
     AutoLock lock(pLock);
     if (tempSize < listSize) {
         logList.push_back(msg);
@@ -81,7 +76,7 @@ void webSocketControl::sendData(const char* msg) {
         logList.pop_front();
         logList.push_back(msg);
     }
-    for (it = m_connections.begin(); it != m_connections.end(); ++it) {
+    for (auto it = m_connections.begin(); it != m_connections.end(); ++it) {
         m_server.send(*it, msg, websocketpp::frame::opcode::text);
     }
 }

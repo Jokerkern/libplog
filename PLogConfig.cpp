@@ -1,54 +1,74 @@
 #include "PLogConfig.h"
-char *PLogConfig::get_conf_value(const char *filename, const char *key) {
-    char *conf_ans = (char *)calloc(1024, sizeof(char));
-    bzero(conf_ans, sizeof(conf_ans));
-    FILE *fp;
-    char *line = NULL, *sub = NULL;
-    size_t len = 0, nread = 0;
-    if (filename == NULL || key == NULL) {
-        return NULL;
-    }
-    if ((fp = fopen(filename, "r")) == NULL) {
-        return NULL;
-    }
 
-    while ((nread = getline(&line, &len, fp)) != -1) {
-        if ((sub = strstr(line, key)) == NULL) continue;
-        if (line[strlen(key)] == '=' && sub == line) {
-            strcpy(conf_ans, line + strlen(key) + 1);
-            if (conf_ans[strlen(conf_ans) - 1] == '\n')
-                conf_ans[strlen(conf_ans) - 1] = '\0';
-        }
+std::unordered_map<std::string, std::string> PLogConfig::get_conf_value(const char *filename) {
+    AutoLock lock(pLock);
+    size_t pos;
+    std::string line;
+    std::unordered_map<std::string, std::string> m;
+    std::ifstream  file(filename, std::ios::in);
+    setting = "{";
+    while (getline(file, line)) {
+        if ((pos = line.find('=')) == line.npos) continue;
+        std::string key = line.substr(0, pos);
+        std::string value = line.substr(pos + 1, line.size());
+        m[key] = value;
+        setting += "\"" + key + "\":\"" + value +"\",";
     }
-    free(line);
-    fclose(fp);
-    return conf_ans;
+    setting[setting.size() - 1] = '}';
+    return m;
+}
+
+void PLogConfig::set_conf_value(std::string key, std::string value) {
+    AutoLock lock(pLock);
+    if (m.empty()) return;
+    m[key] = value;
+    std::ofstream file("plog.conf", std::ios::out | std::ios::trunc );
+    for (auto iter = m.begin(); iter != m.end(); ++iter) {
+        file << iter->first + "=" + iter->second << std::endl;
+    }
+    file.close();
+}
+
+void PLogConfig::set_conf_value(std::unordered_map<std::string, std::string> tm) {
+    AutoLock lock(pLock);
+    if (m.empty()) return;
+    m = tm;
+    std::ofstream file("plog.conf", std::ios::out | std::ios::trunc );
+    for (auto iter = m.begin(); iter != m.end(); ++iter) {
+        file << iter->first + "=" + iter->second << std::endl;
+    }
+    file.close();
+    exit(0);
 }
 
 int PLogConfig::getMode() {
-    return mode;
+    return atoi(m["MODE"].c_str());
 }
 
 int PLogConfig::getTcpSinkPort() {
-    return tcpSinkPort;
+    return atoi(m["TCPSINKPORT"].c_str());
 }
 
 int PLogConfig::getTcpHttpPort() {
-    return tcpHttpPort;
+    return atoi(m["TCPHTTPPORT"].c_str());
 }
 
 int PLogConfig::getBufferSize() {
-    return bufferSize;
+    return atoi(m["BUFFERSIZE"].c_str());
 }
 
 int PLogConfig::getMaxFiles() {
-    return maxFiles;
+    return atoi(m["MAXFILES"].c_str());
 }
 
 int PLogConfig::getMaxSize() {
-    return maxSize;
+    return atoi(m["MAXSIZE"].c_str()) * 1048576;
 }
 
 std::string PLogConfig::getTcpIp() {
-    return tcpIp;
+    return m["TCPIP"];
+}
+
+std::string PLogConfig::getSetting() {
+    return setting;
 }

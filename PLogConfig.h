@@ -1,7 +1,12 @@
 #ifndef _PLOGCONFIG_H_
 #define _PLOGCONFIG_H_
 #include <iostream>
+#include <fstream>
 #include <cstring>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include "AutoLock.h"
 class PLogConfig
 {
 public:
@@ -16,7 +21,9 @@ public:
         return instance;
 
     }
-    static char *get_conf_value(const char *filename, const char *key);
+    std::unordered_map<std::string, std::string> get_conf_value(const char *filename);
+    void set_conf_value(std::string, std::string);
+    void set_conf_value(std::unordered_map<std::string, std::string>);
     int getMode();
     int getTcpSinkPort();
     int getTcpHttpPort();
@@ -24,20 +31,14 @@ public:
     int getMaxSize();
     int getMaxFiles();
     std::string getTcpIp();
+    std::string getSetting();
 private:
-    int mode, tcpSinkPort, tcpHttpPort, bufferSize;
-    int maxFiles, maxSize;
-    std::string tcpIp;
+    Lock pLock;
     const char *config = "./plog.conf";
-    PLogConfig(){
-        mode = atoi(get_conf_value(config, "MODE"));
-        tcpIp = get_conf_value(config, "TCPIP");
-        tcpSinkPort = atoi(get_conf_value(config, "TCPSINKPORT"));
-        tcpHttpPort = atoi(get_conf_value(config, "TCPHTTPPORT"));
-        bufferSize = atoi(get_conf_value(config, "BUFFERSIZE"));
-        maxFiles = atoi(get_conf_value(config, "MAXFILES"));
-        maxSize = atoi(get_conf_value(config, "MAXSIZE"));
-        //std::cout<<"constructor called!"<<std::endl;
+    std::string setting;
+    std::unordered_map<std::string, std::string> m;
+    PLogConfig() {
+        m = get_conf_value(config);
     }
 
 };

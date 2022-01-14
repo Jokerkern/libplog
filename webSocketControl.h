@@ -7,6 +7,7 @@
 #include <list>
 #include <fstream>
 #include <unordered_set>
+#include <unordered_map>
 #include "PLogConfig.h"
 #include "AutoLock.h"
 
