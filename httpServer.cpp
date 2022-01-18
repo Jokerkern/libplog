@@ -70,6 +70,7 @@ void proxy(std::string buf, int request) {
     raddr.sin_family = AF_INET;
     inet_pton(AF_INET, config.getTcpIp().c_str(), &raddr.sin_addr);
     raddr.sin_port = htons(config.getTcpHttpPort());
+    printf("ip:%s , port:%d\n", config.getTcpIp().c_str(), config.getTcpHttpPort());
     if (connect(sd, (sockaddr *)&raddr, sizeof(raddr)) < 0) {
     	char buf[520]="HTTP/1.1 500 Internal Server Error\r\nconnection: close\r\n\r\n";
     	send(request, buf, strlen(buf), 0);
