@@ -4,7 +4,6 @@
 
 #ifndef PLOG_HTTPSERVER_H
 #define PLOG_HTTPSERVER_H
-#include "httpserver.h"
 #include <iostream>
 #include <string>
 #include <fstream>

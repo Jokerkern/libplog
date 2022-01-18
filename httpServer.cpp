@@ -30,6 +30,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include "PLogConfig.h"
 #include "httpServer.h"
 
 #define ISspace(x) isspace((int)(x))
@@ -60,14 +61,15 @@ void unimplemented(int);
 void proxy(std::string buf, int request) {
     int sd;
     struct sockaddr_in raddr;
+    PLogConfig& config = PLogConfig::get_instance();
     sd = socket(AF_INET, SOCK_STREAM, 0);
     if (sd < 0) {
         perror("socket()");
         return ;
     }
     raddr.sin_family = AF_INET;
-    inet_pton(AF_INET, "127.0.0.1", &raddr.sin_addr);
-    raddr.sin_port = htons(9089);
+    inet_pton(AF_INET, config.getTcpIp().c_str(), &raddr.sin_addr);
+    raddr.sin_port = htons(config.getTcpHttpPort());
     if (connect(sd, (sockaddr *)&raddr, sizeof(raddr)) < 0) {
     	char buf[520]="HTTP/1.1 500 Internal Server Error\r\nconnection: close\r\n\r\n";
     	send(request, buf, strlen(buf), 0);
