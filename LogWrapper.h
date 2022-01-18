@@ -1,8 +1,8 @@
 #pragma once
+#include <string>
 #ifdef WIN32
 #include <Windows.h>
 #else
-typedef void *HANDLE;
 #define HMODULE void*
 #endif
 #pragma execution_character_set("utf-8")
@@ -63,7 +63,7 @@ public:
 	static void Free();
 
 private:
-	HANDLE m_hLog;
+	std::string m_hLog;
 	static const int MAX_BUF_SIZE = 1024 * 5;
 	char m_buf[MAX_BUF_SIZE];
 };

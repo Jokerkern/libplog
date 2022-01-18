@@ -35,7 +35,6 @@ public:
 private:
 	typedef std::set<connection_hdl, std::owner_less<connection_hdl> > con_list;
     std::list<std::string> logList;
-    int listSize;
     int tempSize = 0;
 	server m_server;
 	con_list m_connections;

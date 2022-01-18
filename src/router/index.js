@@ -11,18 +11,26 @@ const routes = [
   {
     path: '/',
     name: 'Aboud',
-    component:About
+    component:About,
+    meta: {
+      keepAlive: true
+    }
   },
   {
     path: '/About',
     name: 'About',
     component: About,
-    
+    meta: {
+      keepAlive: true
+    }
   },
   {
     path: '/Home',
     name: 'Home',
     component: Home,
+    meta: {
+      keepAlive: true
+    }
   },
  
 
@@ -30,6 +38,9 @@ const routes = [
     path: '/Logorm',
     name: 'Logorm',
     component: Logorm,
+    meta: {
+      keepAlive: true
+    }
   },
    {
     path: '/Setting',

@@ -10,10 +10,10 @@
 
 typedef void (*FN_Init)();
 typedef void (*FN_UnInit)();
-typedef HANDLE (*FN_Open)(const char *log);
-typedef bool (*FN_Close)(HANDLE h);
-typedef bool (*FN_MLogWrite)(int type, HANDLE h, const char *log, unsigned short logLen);
-typedef bool (*FN_MLogWriteHex)(int type, HANDLE h, const char *prefix, const char *data, unsigned short dataLen);
+typedef std::string (*FN_Open)(const char *log);
+typedef bool (*FN_Close)(std::string h);
+typedef bool (*FN_MLogWrite)(int type, std::string h, const char *log, unsigned short logLen);
+typedef bool (*FN_MLogWriteHex)(int type, std::string h, const char *prefix, const char *data, unsigned short dataLen);
 
 static HMODULE s_hModule = NULL;
 static FN_Init s_init = NULL;
@@ -25,7 +25,7 @@ static FN_MLogWriteHex s_writeHex = NULL;
 
 LogWrapper::LogWrapper(void)
 {
-	m_hLog = NULL;
+	m_hLog = "";
 }
 
 LogWrapper::~LogWrapper(void)

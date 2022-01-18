@@ -2,8 +2,14 @@
   <div class="Setting">
     <SideMenu class="Setting-left"></SideMenu>
     <div class="Setting-right">
+      <el-result v-show="result" icon="success" title="修改成功">
+        <template slot="extra">
+          <el-button type="primary" size="medium" @click="onReturn">返回</el-button>
+        </template>
+      </el-result>
+      <div v-show="!result">
       <el-collapse v-model="activeNames">
-        <el-collapse-item title="浏览器" name="1">
+        <el-collapse-item title="浏览器(刷新生效)" name="1">
           <el-form
             ref="form"
             :model="form"
@@ -46,11 +52,17 @@
             <el-form-item label="归集服务器httpPort">
               <el-input v-model="setting.TCPHTTPPORT"></el-input>
             </el-form-item>
+            <el-form-item label="WebSocketPort(重启)">
+              <el-input v-model="setting.WEBSOCKETPORT"></el-input>
+            </el-form-item>
+            <el-form-item label="web服务器Port(重启)">
+              <el-input v-model="setting.HTTPPORT"></el-input>
+            </el-form-item>
           </el-form>
         </el-collapse-item>
       </el-collapse>
-      <el-button type="primary" @click="onSubmit">确定</el-button>
-      <el-button>重置</el-button>
+      <el-button type="primary" @click="onSubmit" style="position: absolute;left: 50%;">确定</el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -79,7 +91,10 @@ export default {
         TCPHTTPPORT: "",
         TCPIP: "",
         TCPSINKPORT: "",
+        WEBSOCKETPORT: "",
+        HTTPPORT: "",
       },
+      result: false,
     };
   },
   mounted() {
@@ -89,22 +104,23 @@ export default {
     this.form.websocketPort = localStorage.getItem("websocketPort")
       ? localStorage.getItem("websocketPort")
       : "9002";
-      const that = this;
-      this.timer = setTimeout(function() {
-        that.setting = JSON.parse(localStorage.getItem("setting"));
-      }, 100);
-    
+      this.setting = this.$store.state.setting;
   },
   methods: {
     onSubmit() {
       localStorage.clear();
       localStorage.setItem("websocketIp", this.form.websocketIp);
       localStorage.setItem("websocketPort", this.form.websocketPort);
+      // localStorage.setItem('setting', JSON.stringify(this.setting));
+      this.result = true;
       let ws = this.$store.state.webSocket;
       ws.send(JSON.stringify(this.setting));
       //this.$store.commit("clear");
-      this.$router.replace("/About");
-      location.reload();
+      //this.$router.replace("/About");
+      //location.reload();
+    },
+    onReturn() {
+      this.result = false;
     },
   },
 };

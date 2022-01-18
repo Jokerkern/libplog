@@ -23,10 +23,14 @@ void PLogConfig::set_conf_value(std::string key, std::string value) {
     if (m.empty()) return;
     m[key] = value;
     std::ofstream file("plog.conf", std::ios::out | std::ios::trunc );
+    setting = "{";
     for (auto iter = m.begin(); iter != m.end(); ++iter) {
         file << iter->first + "=" + iter->second << std::endl;
+        setting += "\"" + key + "\":\"" + value +"\",";
     }
+    setting[setting.size() - 1] = '}';
     file.close();
+    change++;
 }
 
 void PLogConfig::set_conf_value(std::unordered_map<std::string, std::string> tm) {
@@ -34,15 +38,31 @@ void PLogConfig::set_conf_value(std::unordered_map<std::string, std::string> tm)
     if (m.empty()) return;
     m = tm;
     std::ofstream file("plog.conf", std::ios::out | std::ios::trunc );
+    setting = "{";
     for (auto iter = m.begin(); iter != m.end(); ++iter) {
         file << iter->first + "=" + iter->second << std::endl;
+        setting += "\"" + iter->first + "\":\"" + iter->second +"\",";
     }
+    setting[setting.size() - 1] = '}';
     file.close();
-    exit(0);
+    change++;
+}
+
+bool PLogConfig::checkChange(std::string logger) {
+    AutoLock lock(pLock);
+    if (plogControlMap[logger] < change) {
+        plogControlMap[logger] = change;
+        return true;
+    }
+    return false;
 }
 
 int PLogConfig::getMode() {
     return atoi(m["MODE"].c_str());
+}
+
+int PLogConfig::getWebSocketPort() {
+    return atoi(m["WEBSOCKETPORT"].c_str());
 }
 
 int PLogConfig::getTcpSinkPort() {
@@ -51,6 +71,10 @@ int PLogConfig::getTcpSinkPort() {
 
 int PLogConfig::getTcpHttpPort() {
     return atoi(m["TCPHTTPPORT"].c_str());
+}
+
+int PLogConfig::getHttpPort() {
+    return atoi(m["HTTPPORT"].c_str());
 }
 
 int PLogConfig::getBufferSize() {

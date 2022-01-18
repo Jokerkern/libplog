@@ -11,6 +11,7 @@ export default new Vuex.Store({
     levelTotal: [0, 0, 0, 0],
     fileTotal: [],
     webSocket: WebSocket,
+    setting: {},
   },
   getters: {
     log: (state) => state.log,
@@ -19,6 +20,7 @@ export default new Vuex.Store({
     levelTotal: (state) => state.levelTotal,
     fileTotal: (state) => state.fileTotal,
     webSocket: (state) => state.webSocket,
+    setting: (state) => state.setting,
   },
   mutations: {
     changeLog(state, data) {
@@ -45,6 +47,9 @@ export default new Vuex.Store({
     changeWebSocket(state, data) {
       state.webSocket = data;
     },
+    changeSetting(state, data) {
+      state.setting = data;
+    },
     clear(state) {
       state.log= [];
       state.total= 0;
@@ -52,6 +57,7 @@ export default new Vuex.Store({
       state.levelTotal= [0, 0, 0, 0];
       state.fileTotal= [];
       state.webSocket= null;
+      state.setting = {};
     },
   },
   actions: {

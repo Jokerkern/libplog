@@ -1,8 +1,6 @@
 #include "webSocketControl.h"
 
 webSocketControl::webSocketControl() {
-    PLogConfig& config = PLogConfig::get_instance();
-    listSize = config.getBufferSize();
     // Initialize Asio Transport
     m_server.set_reuse_addr(true);
     m_server.init_asio();
@@ -11,7 +9,7 @@ webSocketControl::webSocketControl() {
     m_server.set_open_handler(bind(&webSocketControl::on_open, this, ::_1));
     m_server.set_close_handler(bind(&webSocketControl::on_close, this, ::_1));
     m_server.set_message_handler(bind(&webSocketControl::on_message, this, ::_1, ::_2));
-    m_server.clear_access_channels(websocketpp::log::alevel::all);
+    m_server.set_access_channels(websocketpp::log::alevel::none);
 
 }
 
@@ -65,16 +63,18 @@ void webSocketControl::on_message(connection_hdl hdl, server::message_ptr msg) {
     }
     PLogConfig& config = PLogConfig::get_instance();
     config.set_conf_value(m);
+    sendData(config.getSetting().c_str());
     //config.set_conf_value("MODE", "3");
 }
 void webSocketControl::sendData(const char* msg) {
     AutoLock lock(pLock);
-    if (tempSize < listSize) {
-        logList.push_back(msg);
-        tempSize++;
-    } else {
+    PLogConfig& config = PLogConfig::get_instance();
+    int listSize = config.getBufferSize();
+    logList.push_back(msg);
+    tempSize++;
+    while (tempSize > listSize) {
         logList.pop_front();
-        logList.push_back(msg);
+        tempSize--;
     }
     for (auto it = m_connections.begin(); it != m_connections.end(); ++it) {
         m_server.send(*it, msg, websocketpp::frame::opcode::text);

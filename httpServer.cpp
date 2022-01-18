@@ -1,106 +1,73 @@
-//
-// Created by p on 12/23/21.
-//
-
+/* J. David's webserver */
+/* This is a simple webserver.
+ * Created November 1999 by J. David Blackstone.
+ * CSE 4344 (Network concepts), Prof. Zeigler
+ * University of Texas at Arlington
+ */
+/* This program compiles for Sparc Solaris 2.6.
+ * To compile for Linux:
+ *  1) Comment out the #include <pthread.h> line.
+ *  2) Comment out the line that defines the variable newthread.
+ *  3) Comment out the two lines that run pthread_create().
+ *  4) Uncomment the line that runs accept_request().
+ *  5) Remove -lsocket from the Makefile.
+ */
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <strings.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <pthread.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <thread>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include "httpServer.h"
 
+#define ISspace(x) isspace((int)(x))
 
-typedef struct {
-  int index;
-  int len;
-  int type;
-} http_token_t;
+#define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
+#define STDIN   0
+#define STDOUT  1
+#define STDERR  2
 
-typedef struct {
-  http_token_t* buf;
-  int capacity;
-  int size;
-} http_token_dyn_t;
+void accept_request(int);
+void bad_request(int);
+void cat(int, FILE *);
+void cannot_execute(int);
+void error_die(const char *);
+void execute_cgi(int, const char *, const char *, const char *);
+int get_line(int, char *, int);
+void headers(int, const char *);
+void not_found(int);
+void serve_file(int, const char *, std::string);
+int startup(int *);
+void unimplemented(int);
 
-typedef void (*epoll_cb_t)(struct epoll_event*);
-
-typedef struct http_ev_cb_s {
-  epoll_cb_t handler;
-} ev_cb_t;
-
-typedef struct {
-  char* buf;
-  int64_t total_bytes;
-  int32_t capacity;
-  int32_t length;
-  int32_t index;
-  int32_t anchor;
-  http_token_t token;
-  uint8_t flags;
-} hs_stream_t;
-
-typedef struct {
-  int64_t content_length;
-  int64_t body_consumed;
-  int16_t match_index;
-  int16_t header_count;
-  int8_t state;
-  int8_t meta;
-} http_parser_t;
-
-typedef struct http_request_s {
-  epoll_cb_t handler;
-  epoll_cb_t timer_handler;
-  int timerfd;
-  void (*chunk_cb)(struct http_request_s*);
-  void* data;
-  hs_stream_t stream;
-  http_parser_t parser;
-  int state;
-  int socket;
-  int timeout;
-  struct http_server_s* server;
-  http_token_dyn_t tokens;
-  char flags;
-} http_request_t;
-
-typedef struct http_server_s {
-  epoll_cb_t handler;
-  epoll_cb_t timer_handler;
-  int64_t memused;
-  int socket;
-  int port;
-  int loop;
-  int timerfd;
-  socklen_t len;
-  void (*request_handler)(http_request_t*);
-  struct sockaddr_in addr;
-  void* data;
-  char date[32];
-} http_server_t;
-
-typedef struct http_header_s {
-  char const * key;
-  char const * value;
-  struct http_header_s* next;
-} http_header_t;
-
-typedef struct http_response_s {
-  http_header_t* headers;
-  char const * body;
-  int content_length;
-  int status;
-} http_response_t;
-
-typedef struct http_string_s http_string_t;
-
-void proxy(char * buf, int request) {
+/**********************************************************************/
+/* A request has caused a call to accept() on the server port to
+ * return.  Process the request appropriately.
+ * Parameters: the socket connected to the client */
+/**********************************************************************/
+void proxy(std::string buf, int request) {
     int sd;
     struct sockaddr_in raddr;
     sd = socket(AF_INET, SOCK_STREAM, 0);
-    PLogConfig& config = PLogConfig::get_instance();
     if (sd < 0) {
         perror("socket()");
         return ;
     }
     raddr.sin_family = AF_INET;
-    inet_pton(AF_INET, config.getTcpIp().c_str(), &raddr.sin_addr);
-    raddr.sin_port = htons(config.getTcpHttpPort());
+    inet_pton(AF_INET, "127.0.0.1", &raddr.sin_addr);
+    raddr.sin_port = htons(9089);
     if (connect(sd, (sockaddr *)&raddr, sizeof(raddr)) < 0) {
     	char buf[520]="HTTP/1.1 500 Internal Server Error\r\nconnection: close\r\n\r\n";
     	send(request, buf, strlen(buf), 0);
@@ -108,7 +75,7 @@ void proxy(char * buf, int request) {
         return ;
     }
     char recv_buf[1029] = {};
-        if (send(sd, buf, strlen(buf), 0) < 0) {
+        if (send(sd, buf.c_str(), buf.length(), 0) < 0) {
             perror("send");
             return ;
         }
@@ -137,47 +104,143 @@ void proxy(char * buf, int request) {
         }
         //std::cout << "end" << std::endl;
         close(sd);
-
-
 }
+void accept_request(int client)
+{
+    //int client = (intptr_t)arg;
+    char buf[1024];
+    std::string request;
+    size_t numchars;
+    char method[255];
+    char url[255];
+    char path[512];
+    size_t i, j;
+    struct stat st;
+    int cgi = 0;      /* becomes true if server decides this is a CGI
+                       * program */
+    char *query_string = NULL;
 
-void handle_request(struct http_request_s* request) {
-    std::string CodeFilestr, path = "./dist", type = "";
-    std::ifstream  CodeInputStream;
-    auto target = http_request_target(request);
-    if (target.buf[3] == 'i') {
-        //std::cout << "proxy" << std::endl;
-        proxy(request->stream.buf, request->socket);
-        close(request->socket);
+    numchars = get_line(client, buf, sizeof(buf));
+    request = buf;
+    if (request.find("api") != request.npos) {
+    	while ((numchars > 0) && strcmp("\n", buf)) {
+    	    numchars = get_line(client, buf, sizeof(buf));
+    	    request += buf;
+    	}
+    	proxy(request, client);
+    	close(client);
+        return ;
+    }
+    i = 0; j = 0;
+
+    while (!ISspace(buf[i]) && (i < sizeof(method) - 1))
+    {
+        method[i] = buf[i];
+        i++;
+    }
+    j=i;
+    method[i] = '\0';
+    if (strcasecmp(method, "GET") && strcasecmp(method, "POST"))
+    {
+        unimplemented(client);
         return;
     }
-    for (int i = 0; i < target.len; i++) {
-        path += target.buf[i];
+
+    if (strcasecmp(method, "POST") == 0)
+        cgi = 1;
+
+    i = 0;
+    while (ISspace(buf[j]) && (j < numchars))
+        j++;
+    while (!ISspace(buf[j]) && (i < sizeof(url) - 1) && (j < numchars))
+    {
+        url[i] = buf[j];
+        i++; j++;
     }
-    if (target.len == 1) {
-        path += "index.html";
-        type = "text/html; charset=UTF-8";
-    } else {
-        for (int j = target.len - 1; target.buf[j] != '.'; j--) {
-            type = target.buf[j] + type;
+    url[i] = '\0';
+    if (strcasecmp(method, "GET") == 0)
+    {
+        query_string = url;
+        while ((*query_string != '?') && (*query_string != '\0'))
+            query_string++;
+        if (*query_string == '?')
+        {
+            cgi = 1;
+            *query_string = '\0';
+            query_string++;
         }
-        //std::cout << type << std::endl;
-        if (type == "css") {
-            type = "text/css; charset=UTF-8";
-        } else if (type == "map") {
-            type = "application/map; charset=UTF-8";
-        } else if (type == "ico") {
-            type = "image/icon; charset=UTF-8";
-        } else if (type == "woff") {
-            type = "font/woff; charset=UTF-8";
-        } else if (type == "ttf") {
-            type = "font/ttf; charset=UTF-8";
+    }
+
+    sprintf(path, "dist%s", url);
+    if (path[strlen(path) - 1] == '/')
+        strcat(path, "index.html");
+        
+    
+    if (stat(path, &st) == -1) {
+        while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
+            numchars = get_line(client, buf, sizeof(buf));
+        not_found(client);
+    }
+    else
+    {
+        if ((st.st_mode & S_IFMT) == S_IFDIR)
+            strcat(path, "/index.html");
+        if ((st.st_mode & S_IXUSR) ||
+                (st.st_mode & S_IXGRP) ||
+                (st.st_mode & S_IXOTH)    )
+            cgi = 1;
+        if (cgi) {
+            serve_file(client, path, request);
         } else {
-            type = "application/javascript; charset=UTF-8";
+            execute_cgi(client, path, method, query_string);
         }
     }
-    //std::cout << http_request_target(request).buf << std::endl;
-    CodeInputStream.open(path.c_str()); // 参数一个const char*的字符串，代表文件的地址
+
+    close(client);
+}
+
+/**********************************************************************/
+/* Inform the client that a request it has made has a problem.
+ * Parameters: client socket */
+/**********************************************************************/
+void bad_request(int client)
+{
+    char buf[1024];
+
+    sprintf(buf, "HTTP/1.0 400 BAD REQUEST\r\n");
+    send(client, buf, sizeof(buf), 0);
+    sprintf(buf, "Content-type: text/html\r\n");
+    send(client, buf, sizeof(buf), 0);
+    sprintf(buf, "\r\n");
+    send(client, buf, sizeof(buf), 0);
+    sprintf(buf, "<P>Your browser sent a bad request, ");
+    send(client, buf, sizeof(buf), 0);
+    sprintf(buf, "such as a POST without a Content-Length.\r\n");
+    send(client, buf, sizeof(buf), 0);
+}
+
+/**********************************************************************/
+/* Put the entire contents of a file out on a socket.  This function
+ * is named after the UNIX "cat" command, because it might have been
+ * easier just to do something like pipe, fork, and exec("cat").
+ * Parameters: the client socket descriptor
+ *             FILE pointer for the file to cat */
+/**********************************************************************/
+//void cat(int client, FILE *resource)
+//{
+//    char buf[1024];
+//    while (!feof(resource))
+//    {
+//        fgets(buf, sizeof(buf), resource);
+//        send(client, buf, strlen(buf), 0);
+//
+//    }
+//}
+void cat(int client, std::string path)
+{
+    std::string CodeFilestr;
+    std::ifstream  CodeInputStream;
+    CodeInputStream.open(path); // 参数一个const char*的字符串，代表文件的地址
 
     // 定义一个字符串流
     std::stringstream  CodeStrstream;
@@ -190,16 +253,365 @@ void handle_request(struct http_request_s* request) {
 
     // 转换字符串流到string
     CodeFilestr = CodeStrstream.str();
-    struct http_response_s* response = http_response_init();
-    http_response_status(response, 200);
-    http_response_header(response, "Accept-Ranges", "bytes");
-    http_response_header(response, "Content-Type", type.c_str());
-    http_response_header(response, "Keep-Alive", "timeout=5");
-    http_response_body(response, CodeFilestr.c_str(), CodeFilestr.length());
-    http_respond(request, response);
+    send(client, CodeFilestr.c_str(), CodeFilestr.length(), 0);
 }
 
-void httpServer::run() {
-    struct http_server_s* server = http_server_init(8080, handle_request);
-    http_server_listen(server);
+/**********************************************************************/
+/* Inform the client that a CGI script could not be executed.
+ * Parameter: the client socket descriptor. */
+/**********************************************************************/
+void cannot_execute(int client)
+{
+    char buf[1024];
+
+    sprintf(buf, "HTTP/1.0 500 Internal Server Error\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "Content-type: text/html\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "<P>Error prohibited CGI execution.\r\n");
+    send(client, buf, strlen(buf), 0);
+}
+
+/**********************************************************************/
+/* Print out an error message with perror() (for system errors; based
+ * on value of errno, which indicates system call errors) and exit the
+ * program indicating an error. */
+/**********************************************************************/
+void error_die(const char *sc)
+{
+    perror(sc);
+    exit(1);
+}
+
+/**********************************************************************/
+/* Execute a CGI script.  Will need to set environment variables as
+ * appropriate.
+ * Parameters: client socket descriptor
+ *             path to the CGI script */
+/**********************************************************************/
+void execute_cgi(int client, const char *path,
+        const char *method, const char *query_string)
+{
+    char buf[1024];
+    int cgi_output[2];
+    int cgi_input[2];
+    pid_t pid;
+    int status;
+    int i;
+    char c;
+    int numchars = 1;
+    int content_length = -1;
+
+    buf[0] = 'A'; buf[1] = '\0';
+    if (strcasecmp(method, "GET") == 0)
+        while ((numchars > 0) && strcmp("\n", buf))  /* read & discard headers */
+            numchars = get_line(client, buf, sizeof(buf));
+    else if (strcasecmp(method, "POST") == 0) /*POST*/
+    {
+        numchars = get_line(client, buf, sizeof(buf));
+        while ((numchars > 0) && strcmp("\n", buf))
+        {
+            buf[15] = '\0';
+            if (strcasecmp(buf, "Content-Length:") == 0)
+                content_length = atoi(&(buf[16]));
+            numchars = get_line(client, buf, sizeof(buf));
+        }
+        if (content_length == -1) {
+            bad_request(client);
+            return;
+        }
+    }
+    else/*HEAD or other*/
+    {
+    }
+
+
+    if (pipe(cgi_output) < 0) {
+        cannot_execute(client);
+        return;
+    }
+    if (pipe(cgi_input) < 0) {
+        cannot_execute(client);
+        return;
+    }
+
+    if ( (pid = fork()) < 0 ) {
+        cannot_execute(client);
+        return;
+    }
+    sprintf(buf, "HTTP/1.0 200 OK\r\n");
+    send(client, buf, strlen(buf), 0);
+    if (pid == 0)  /* child: CGI script */
+    {
+        char meth_env[255];
+        char query_env[255];
+        char length_env[255];
+
+        dup2(cgi_output[1], STDOUT);
+        dup2(cgi_input[0], STDIN);
+        close(cgi_output[0]);
+        close(cgi_input[1]);
+        sprintf(meth_env, "REQUEST_METHOD=%s", method);
+        putenv(meth_env);
+        if (strcasecmp(method, "GET") == 0) {
+            sprintf(query_env, "QUERY_STRING=%s", query_string);
+            putenv(query_env);
+        }
+        else {   /* POST */
+            sprintf(length_env, "CONTENT_LENGTH=%d", content_length);
+            putenv(length_env);
+        }
+        execl(path, NULL);
+        exit(0);
+    } else {    /* parent */
+        close(cgi_output[1]);
+        close(cgi_input[0]);
+        if (strcasecmp(method, "POST") == 0)
+            for (i = 0; i < content_length; i++) {
+                recv(client, &c, 1, 0);
+                write(cgi_input[1], &c, 1);
+            }
+        while (read(cgi_output[0], &c, 1) > 0)
+            send(client, &c, 1, 0);
+
+        close(cgi_output[0]);
+        close(cgi_input[1]);
+        waitpid(pid, &status, 0);
+    }
+}
+
+/**********************************************************************/
+/* Get a line from a socket, whether the line ends in a newline,
+ * carriage return, or a CRLF combination.  Terminates the string read
+ * with a null character.  If no newline indicator is found before the
+ * end of the buffer, the string is terminated with a null.  If any of
+ * the above three line terminators is read, the last character of the
+ * string will be a linefeed and the string will be terminated with a
+ * null character.
+ * Parameters: the socket descriptor
+ *             the buffer to save the data in
+ *             the size of the buffer
+ * Returns: the number of bytes stored (excluding null) */
+/**********************************************************************/
+int get_line(int sock, char *buf, int size)
+{
+    int i = 0;
+    char c = '\0';
+    int n;
+
+    while ((i < size - 1) && (c != '\n'))
+    {
+        n = recv(sock, &c, 1, 0);
+        /* DEBUG printf("%02X\n", c); */
+        if (n > 0)
+        {
+            if (c == '\r')
+            {
+                n = recv(sock, &c, 1, MSG_PEEK);
+                /* DEBUG printf("%02X\n", c); */
+                if ((n > 0) && (c == '\n'))
+                    recv(sock, &c, 1, 0);
+                else
+                    c = '\n';
+            }
+            buf[i] = c;
+            i++;
+        }
+        else
+            c = '\n';
+    }
+    buf[i] = '\0';
+
+    return(i);
+}
+
+/**********************************************************************/
+/* Return the informational HTTP headers about a file. */
+/* Parameters: the socket to print the headers on
+ *             the name of the file */
+/**********************************************************************/
+void headers(int client, const char *filename)
+{
+    char buf[1024];
+    std::string type;
+    for (int j = strlen(filename) - 1; filename[j] != '.'; j--) {
+        type = filename[j] + type;
+    }
+    if (type == "css") {
+        type = "text/css; charset=UTF-8";
+    } else if (type == "map") {
+        type = "application/map; charset=UTF-8";
+    } else if (type == "ico") {
+        type = "image/icon; charset=UTF-8";
+    } else if (type == "woff") {
+        type = "font/woff; charset=UTF-8";
+    } else if (type == "ttf") {
+        type = "font/ttf; charset=UTF-8";
+    } else if (type == "js"){
+        type = "application/javascript; charset=UTF-8";
+    } else {
+        type = "text/html";
+    }
+    strcpy(buf, "HTTP/1.0 200 OK\r\n");
+    send(client, buf, strlen(buf), 0);
+    strcpy(buf, SERVER_STRING);
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "Content-Type: %s\r\n", type.c_str());
+    send(client, buf, strlen(buf), 0);
+    strcpy(buf, "\r\n");
+    send(client, buf, strlen(buf), 0);
+    return ;
+}
+
+
+/**********************************************************************/
+/* Give a client a 404 not found status message. */
+/**********************************************************************/
+void not_found(int client)
+{
+    char buf[1024];
+
+    sprintf(buf, "HTTP/1.0 404 NOT FOUND\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, SERVER_STRING);
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "Content-Type: text/html\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "<HTML><TITLE>Not Found</TITLE>\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "<BODY><P>The server could not fulfill\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "your request because the resource specified\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "is unavailable or nonexistent.\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "</BODY></HTML>\r\n");
+    send(client, buf, strlen(buf), 0);
+}
+
+/**********************************************************************/
+/* Send a regular file to the client.  Use headers, and report
+ * errors to client if they occur.
+ * Parameters: a pointer to a file structure produced from the socket
+ *              file descriptor
+ *             the name of the file to serve */
+/**********************************************************************/
+void serve_file(int client, const char *filename, std::string request)
+{
+    FILE *resource = NULL;
+    int numchars = 1;
+    char buf[1024];
+
+    buf[0] = 'A'; buf[1] = '\0';
+    while ((numchars > 0) && strcmp("\n", buf))  {
+        numchars = get_line(client, buf, sizeof(buf));
+    }
+    resource = fopen(filename, "r");
+    if (resource == NULL) {
+        not_found(client);
+    } else
+    {
+        headers(client, filename);
+        cat(client, filename);
+    }
+    fclose(resource);
+}
+
+/**********************************************************************/
+/* This function starts the process of listening for web connections
+ * on a specified port.  If the port is 0, then dynamically allocate a
+ * port and modify the original port variable to reflect the actual
+ * port.
+ * Parameters: pointer to variable containing the port to connect on
+ * Returns: the socket */
+/**********************************************************************/
+int startup(int *port)
+{
+    int httpd = 0;
+    int on = 1;
+    struct sockaddr_in name;
+
+    httpd = socket(PF_INET, SOCK_STREAM, 0);
+    if (httpd == -1)
+        error_die("socket");
+    memset(&name, 0, sizeof(name));
+    name.sin_family = AF_INET;
+    name.sin_port = htons(*port);
+    name.sin_addr.s_addr = htonl(INADDR_ANY);
+    if ((setsockopt(httpd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) < 0)  
+    {  
+        error_die("setsockopt failed");
+    }
+    if (bind(httpd, (struct sockaddr *)&name, sizeof(name)) < 0)
+        error_die("bind");
+    if (*port == 0)  /* if dynamically allocating a port */
+    {
+        socklen_t namelen = sizeof(name);
+        if (getsockname(httpd, (struct sockaddr *)&name, &namelen) == -1)
+            error_die("getsockname");
+        *port = ntohs(name.sin_port);
+    }
+    if (listen(httpd, 5) < 0)
+        error_die("listen");
+    return(httpd);
+}
+
+/**********************************************************************/
+/* Inform the client that the requested web method has not been
+ * implemented.
+ * Parameter: the client socket */
+/**********************************************************************/
+void unimplemented(int client)
+{
+    char buf[1024];
+
+    sprintf(buf, "HTTP/1.0 501 Method Not Implemented\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, SERVER_STRING);
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "Content-Type: text/html\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "<HTML><HEAD><TITLE>Method Not Implemented\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "</TITLE></HEAD>\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "<BODY><P>HTTP request method not supported.\r\n");
+    send(client, buf, strlen(buf), 0);
+    sprintf(buf, "</BODY></HTML>\r\n");
+    send(client, buf, strlen(buf), 0);
+}
+
+/**********************************************************************/
+
+void httpServer::run(int port)
+{
+    int server_sock = -1;
+    int client_sock = -1;
+    struct sockaddr_in client_name;
+    socklen_t  client_name_len = sizeof(client_name);
+
+    server_sock = startup(&port);
+    printf("httpd running on port %d\n", port);
+
+    while (1)
+    {
+        client_sock = accept(server_sock,
+                             (struct sockaddr *)&client_name,
+                             &client_name_len);
+        if (client_sock == -1)
+            error_die("accept");
+        /* accept_request(&client_sock);
+        if (pthread_create(&newthread , NULL, (void *)accept_request, (void *)(intptr_t)client_sock) != 0)
+            perror("pthread_create");*/
+        std::thread newthread(accept_request, client_sock);
+        newthread.detach();
+    }
+
+    close(server_sock);
 }

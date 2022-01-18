@@ -196,8 +196,10 @@ export default {
     const that = this;
     this.timer = setInterval(function () {
       if (that.sqlConnect) {
+        that.sqlConnect = false;
         Total().then((res) => {
             that.lsSqlTotal = res.total;
+            that.sqlConnect = true;
             //console.log(this.message);
           });
       }

@@ -1,9 +1,10 @@
 <template>
   <div id="app">
     <keep-alive>
-      <router-view />
+      <router-view v-if="$route.meta.keepAlive"/>
     </keep-alive>
-  </div>
+      <router-view v-if="!$route.meta.keepAlive"/>
+</div>
 </template>
 
 <script>
@@ -25,7 +26,7 @@ export default {
   beforeDestroy(){
   },
   close() {
-   
+    this.webSocket.close();
   },
   methods: {
     initWebSocket() {
@@ -42,7 +43,9 @@ export default {
     },
     onMessage(event) {
       if (event.data[0] == '{') {
-        localStorage.setItem('setting', event.data);
+        //localStorage.setItem('setting', event.data);
+        //console.log(event.data);
+        this.$store.commit('changeSetting', JSON.parse(event.data));
         return;
       }  
       var log = this.cutString(event);
