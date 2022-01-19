@@ -1,29 +1,29 @@
 <template>
   <el-menu
-      class="side-menu"
-      :default-active="activeIndex"
-      :router="true"
-      :collapse="isCollapse"
-      background-color="#545c64"
-      text-color="#fff"
-      active-text-color="#ffd04b"
+    class="side-menu"
+    :default-active="activeIndex"
+    :router="true"
+    :collapse="isCollapse"
+    background-color="#545c64"
+    text-color="#fff"
+    active-text-color="#ffd04b"
   >
     <div class="fold-wrapper">
       <!-- click事件 当点击时切换菜单的收缩状态 -->
       <i
-          class="el-icon-s-unfold"
-          v-if="isCollapse"
-          title="展开"
-          @click="isCollapse = false"
+        class="el-icon-s-unfold"
+        v-if="isCollapse"
+        title="展开"
+        @click="isCollapse = false"
       ></i>
       <i
-          class="el-icon-s-fold"
-          v-else
-          title="收缩"
-          @click="isCollapse = true"
+        class="el-icon-s-fold"
+        v-else
+        title="收缩"
+        @click="isCollapse = true"
       ></i>
     </div>
-    <el-menu-item index="About" >
+    <el-menu-item index="About">
       <i class="el-icon-odometer"></i>
       <span slot="title">仪表板</span>
     </el-menu-item>
@@ -39,35 +39,54 @@
       <i class="el-icon-setting"></i>
       <span slot="title">设置</span>
     </el-menu-item>
-    
+
+    <el-alert
+      v-show="this.$store.state.sqlConnect"
+      title="成功连接"
+      type="success"
+      :closable="false"
+      show-icon
+      effect="dark"
+      style="bottom:0%;position:absolute"
+    >
+    </el-alert>
+    <el-alert
+      v-show="!this.$store.state.sqlConnect"
+      title="连接失败"
+      type="error"
+      :closable="false"
+      show-icon
+      effect="dark"
+      style="bottom:0%;position:absolute"
+    >
+    </el-alert>
   </el-menu>
 </template>
 
 <script>
 export default {
-  name: 'SideMenu',
+  name: "SideMenu",
   data() {
     return {
-      isCollapse: false //  控制菜单收缩展开
-    }
+      isCollapse: false, //  控制菜单收缩展开
+    };
   },
   computed: {
     // 当前激活菜单的 index
     activeIndex() {
-      return String(this.$route.name) //  获取当前路由参数中包含的文件类型
-    }
+      return String(this.$route.name); //  获取当前路由参数中包含的文件类型
+    },
   },
   watch: {
     // 监听收缩状态变化，存储在sessionStorage中，保证页面刷新时仍然保存设置的状态
     isCollapse(newValue) {
-      sessionStorage.setItem('isCollapse', newValue)
-    }
+      sessionStorage.setItem("isCollapse", newValue);
+    },
   },
   created() {
-    this.isCollapse = sessionStorage.getItem('isCollapse') === 'true' //  读取保存的状态
-    
-  }
-}
+    this.isCollapse = sessionStorage.getItem("isCollapse") === "true"; //  读取保存的状态
+  },
+};
 </script>
 
 <style lang="stylus" scoped>

@@ -12,6 +12,7 @@ export default new Vuex.Store({
     fileTotal: [],
     webSocket: WebSocket,
     setting: {},
+    sqlConnect: false,
   },
   getters: {
     log: (state) => state.log,
@@ -21,6 +22,7 @@ export default new Vuex.Store({
     fileTotal: (state) => state.fileTotal,
     webSocket: (state) => state.webSocket,
     setting: (state) => state.setting,
+    sqlConnect: (state) => state.sqlConnect,
   },
   mutations: {
     changeLog(state, data) {
@@ -49,6 +51,9 @@ export default new Vuex.Store({
     },
     changeSetting(state, data) {
       state.setting = data;
+    },
+    changeSqlConnect(state, data) {
+      state.sqlConnect = data;
     },
     clear(state) {
       state.log= [];

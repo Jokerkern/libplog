@@ -18,53 +18,52 @@
           :name="item.name"
           align="left"
         >
-          <el-row type="flex"
-           justify="start">
-              <el-date-picker
-                v-model="value1"
-                unlink-panels
+          <el-row type="flex" justify="start">
+            <el-date-picker
+              v-model="value1"
+              unlink-panels
+              size="mini"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+            >
+            </el-date-picker>
+            <JsonExcel
+              :data="item.content"
+              :fields="json_fields"
+              :name="item.title + generateTimeReqestNumber()"
+            >
+              <el-button
                 size="mini"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
+                icon="el-icon-download"
+                @click="clickHandler(item, $event)"
               >
-              </el-date-picker>
-              <JsonExcel
-                :data="item.content"
-                :fields="json_fields"
-                :name="item.title + generateTimeReqestNumber()"
-              >
-                <el-button
-                  size="mini"
-                  icon="el-icon-download"
-                  @click="clickHandler"
-                >
-                </el-button>
-              </JsonExcel>
-              <el-input
-                v-model="input"
-                size="mini"
-                style="width: 300px; margin-left: 900px"
-                placeholder="输入关键字搜索"
-                @change="handleSearch(item)"
-              >
-                <el-dropdown trigger="click" slot="prepend" placement="bottom">
-                  <el-button size="mini" icon="el-icon-menu"> </el-button>
-                  <el-dropdown-menu slot="dropdown">
-                    <el-checkbox v-model="isDate">日期</el-checkbox>
-                    <el-checkbox v-model="isTime">时间</el-checkbox>
-                    <el-checkbox v-model="isFile">模块</el-checkbox>
-                    <el-checkbox v-model="isLevel">级别</el-checkbox>
-                    <el-checkbox v-model="isLog">内容</el-checkbox>
-                  </el-dropdown-menu>
-                </el-dropdown>
-                <el-button
-                  slot="append"
-                  icon="el-icon-search"
-                  @click="handleSearch"
-                ></el-button>
-              </el-input>
+              </el-button>
+            </JsonExcel>
+            <el-input
+              v-model="input"
+              size="mini"
+              style="width: 300px; margin-left: 900px"
+              placeholder="输入关键字搜索"
+              @change="handleSearch(item)"
+            >
+              <el-dropdown trigger="click" slot="prepend" placement="bottom">
+                <el-button size="mini" icon="el-icon-menu"> </el-button>
+                <el-dropdown-menu slot="dropdown">
+                  <el-checkbox v-model="isDate">日期</el-checkbox>
+                  <el-checkbox v-model="isTime">时间</el-checkbox>
+                  <el-checkbox v-model="isFile">模块</el-checkbox>
+                  <el-checkbox v-model="isLevel">级别</el-checkbox>
+                  <el-checkbox v-model="isLog">内容</el-checkbox>
+                </el-dropdown-menu>
+              </el-dropdown>
+              <el-button
+                slot="append"
+                icon="el-icon-search"
+                @click="handleSearch"
+              ></el-button>
+            </el-input>
           </el-row>
           <el-table
             border
@@ -133,9 +132,9 @@
               label="内容"
               align="left"
             >
-            <template slot-scope="scope">
-              <label v-html="sensitiveWords(scope.row.message)"></label>
-            </template>
+              <template slot-scope="scope">
+                <label v-html="sensitiveWords(scope.row.message)"></label>
+              </template>
             </el-table-column>
           </el-table>
           <el-pagination
@@ -174,6 +173,7 @@
 <script>
 import SideMenu from "./SideMenu.vue"; //  1.引入左侧菜单组件
 import JsonExcel from "vue-json-excel";
+import CsvExportor from "csv-exportor";
 export default {
   name: "home",
   components: {
@@ -241,9 +241,12 @@ export default {
   },
   methods: {
     sensitiveWords(value1) {
-        let reg = new RegExp(this.input, "g");
-        value1 = value1.replace(reg, '<font color="red">' + this.input + '</font>')
-      
+      let reg = new RegExp(this.input, "g");
+      value1 = value1.replace(
+        reg,
+        '<font color="red">' + this.input + "</font>"
+      );
+
       return value1;
     },
     generateTimeReqestNumber() {
@@ -261,7 +264,8 @@ export default {
     pad2(n) {
       return n < 10 ? "0" + n : n;
     },
-    clickHandler(evt) {
+    clickHandler(item, evt) {
+      CsvExportor.downloadCsv(item.content, this.json_fields, item.title + this.generateTimeReqestNumber());
       let target = evt.target;
       if (target.nodeName == "I") {
         target = evt.target.parentNode;

@@ -72,8 +72,7 @@ protected:
         strncpy(m.data, formatted.data(), m.length);
         char snd_buf[1035] = {};
         memcpy(snd_buf, &m, sizeof(message));
-        send(client_.fd(), snd_buf, 4 + strlen(m.data), 0);
-        //printf("%s\n", m.data);
+        send(client_.fd(), snd_buf, 4 + strlen(m.data), MSG_NOSIGNAL);
         usleep(100000);
     }
 

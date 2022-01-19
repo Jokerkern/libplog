@@ -38,7 +38,7 @@ axios.interceptors.response.use(
         if (error.response.status) {
             switch (error.response.status) {
                 case 500: //    HTTP状态码500
-                    Message.error('后台服务发生错误')
+                    //Message.error('后台服务发生错误')
                     break
                 case 401: //    HTTP状态码401
                     Message.error('无权限')

@@ -148,7 +148,8 @@ export default {
       },
     };
     return {
-      timer: "",
+      timer1: "",
+      timer2: "",
       lsTotal: 0,
       total: 1,
       sqlTotal: 0,
@@ -188,23 +189,22 @@ export default {
     Total().then((res) => {
             this.sqlTotal = res.total;
             this.lsSqlTotal = res.total;
-            if (this.sqlTotal != 0) this.sqlConnect = true;
-            //console.log(this.message);
+          })
+          .catch(() => {
           });
     
     //console.log(this.lsTotal,  this.total);
     const that = this;
-    this.timer = setInterval(function () {
-      if (that.sqlConnect) {
-        that.sqlConnect = false;
+    this.timer1 = setInterval(function () {
+      if (that.$store.state.sqlConnect) {
         Total().then((res) => {
             that.lsSqlTotal = res.total;
-            that.sqlConnect = true;
-            //console.log(this.message);
+          })
+          .catch(() => {
           });
       }
     }, 10000);
-    this.timer = setInterval(function () {
+    this.timer2 = setInterval(function () {
       if (that.$store.state.total > that.lsTotal) {
         //日志数
         that.lsTotal = that.$store.state.total;
@@ -235,7 +235,8 @@ export default {
     }, 100);
   },
   beforeDestroy() {
-    clearInterval(this.timer);
+    clearInterval(this.timer1);
+    clearInterval(this.timer2);
   },
 };
 </script>

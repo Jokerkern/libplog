@@ -4,3 +4,5 @@ export const Query = (p) => get('/v1/todo/', p)
 
 export const Total = (p) => get('/v1/todo/total', p)
 
+export const Ping = (p) => get('/v1/todo/ping', p)
+

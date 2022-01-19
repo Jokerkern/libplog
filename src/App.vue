@@ -7,7 +7,8 @@
 </div>
 </template>
 
-<script>
+<script> 
+import { Ping } from "@/request/user.js";
 export default {
   name: 'app',
 
@@ -15,15 +16,35 @@ export default {
     return {
       webSocket: null,
       logArr: [],
+      timer1: "",
+      isConnect: true,
     };
   },
   created() {
+    
     this.initWebSocket();
+  },
+  mounted() {
+    const that = this;
+    this.timer1 = setInterval(function () {
+      if (that.isConnect) {
+        that.isConnect = false;
+        Ping().then(() => {
+          that.$store.commit('changeSqlConnect', true);
+          that.isConnect = true;
+          })
+          .catch(() => {
+            that.$store.commit('changeSqlConnect', false);
+            that.isConnect = true;
+        });
+      }
+    }, 1000);    
   },
   destroyed() {
     this.webSocket.close();
   },
   beforeDestroy(){
+    clearInterval(this.timer1);
   },
   close() {
     this.webSocket.close();
